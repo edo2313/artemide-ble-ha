@@ -1,7 +1,6 @@
 {
   "domain": "artemide_ble",
   "name": "Artemide BLE",
-  "version": "0.2.0",
   "bluetooth": [
     {
       "service_uuid": "11960002-b656-22ae-e611-9680866c0d6a"
@@ -24,5 +23,6 @@
   "requirements": [
     "bleak-retry-connector>=3.4.0"
   ],
-  "single_config_entry": true
+  "single_config_entry": true,
+  "version": "0.2.0"
 }
