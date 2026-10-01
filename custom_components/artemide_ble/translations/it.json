@@ -1,0 +1,80 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "title": "Lampade Artemide",
+        "description": "Lampade Artemide nelle vicinanze:\n{devices}\n\nInserisci la password di rete (quella impostata dall'app Artemide; è mostrata quella predefinita). Home Assistant si collegherà poi una volta a ogni lampada per leggerne l'indirizzo di rete.",
+        "data": {
+          "password": "Password di rete"
+        }
+      },
+      "failed": {
+        "title": "Nessuna lampada ha risposto",
+        "description": "Nessuna lampada ha comunicato il proprio indirizzo di rete. Controlla la password, che le lampade siano accese e che non siano collegate all'app Artemide, poi invia per riprovare."
+      },
+      "confirm": {
+        "title": "Lampade trovate",
+        "description": "{lamps}\n\nFacoltativo: aggiungi gli indirizzi delle lampade raggiungibili solo tramite le altre lampade (4 caratteri ciascuno, separati da virgola).",
+        "data": {
+          "extra_nodes": "Indirizzi lampade aggiuntivi"
+        }
+      }
+    },
+    "progress": {
+      "discover": "Collegamento a ogni lampada per leggerne l'indirizzo. Può richiedere fino a un minuto."
+    },
+    "abort": {
+      "no_devices_found": "Nessuna lampada Artemide trovata. Assicurati che le lampade siano accese e che un adattatore o un proxy Bluetooth sia nelle vicinanze.",
+      "already_configured": "La rete Artemide è già configurata.",
+      "single_instance_allowed": "La rete Artemide è già configurata.",
+      "not_supported": "Questo dispositivo Bluetooth non è una lampada Artemide."
+    },
+    "error": {
+      "invalid_nodes": "Gli indirizzi delle lampade devono essere di 4 caratteri ciascuno, ad es. 0004, 0005."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opzioni Artemide",
+        "description": "Lampade conosciute:\n{lamps}",
+        "data": {
+          "poll_interval": "Intervallo di aggiornamento (secondi)",
+          "extra_nodes": "Indirizzi lampade aggiuntivi",
+          "rediscover": "Ripeti la ricerca delle lampade"
+        }
+      }
+    },
+    "progress": {
+      "discover": "Collegamento a ogni lampada per leggerne l'indirizzo. Può richiedere fino a un minuto."
+    },
+    "error": {
+      "invalid_nodes": "Gli indirizzi delle lampade devono essere di 4 caratteri ciascuno, ad es. 0004, 0005."
+    }
+  },
+  "services": {
+    "send_commands": {
+      "name": "Invia comandi grezzi",
+      "description": "Diagnostica: si collega a una lampada, invia comandi del protocollo e restituisce tutte le risposte. L'integrazione resta in pausa durante l'esecuzione. Scrivi \\r per un ritorno a capo.",
+      "fields": {
+        "address": {
+          "name": "Indirizzo Bluetooth della lampada",
+          "description": "MAC della lampada a cui collegarsi (deve essere nel raggio di un proxy Bluetooth)."
+        },
+        "password": {
+          "name": "Password di rete",
+          "description": "Inviata con SPS prima dei comandi."
+        },
+        "commands": {
+          "name": "Comandi",
+          "description": "Elenco di comandi, inviati in ordine. Scrivi \\r per un ritorno a capo; usa il prefisso hex: per inviare byte grezzi (comandi colore)."
+        },
+        "window": {
+          "name": "Timeout risposte",
+          "description": "Secondi di attesa delle risposte dopo ogni comando."
+        }
+      }
+    }
+  }
+}

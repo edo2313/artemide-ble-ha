@@ -1,0 +1,80 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "title": "Artemide lamps",
+        "description": "Artemide lamps in range:\n{devices}\n\nEnter the network password (the one set by the Artemide app; default shown). Home Assistant will then connect to each lamp once to read its mesh address.",
+        "data": {
+          "password": "Network password"
+        }
+      },
+      "failed": {
+        "title": "No lamp answered",
+        "description": "None of the lamps reported its mesh address. Check the password and that the lamps are powered and not connected to the Artemide app, then submit to retry."
+      },
+      "confirm": {
+        "title": "Lamps found",
+        "description": "{lamps}\n\nOptionally add node addresses of lamps that are only reachable through the mesh (4 characters each, comma separated).",
+        "data": {
+          "extra_nodes": "Extra node addresses"
+        }
+      }
+    },
+    "progress": {
+      "discover": "Connecting to each lamp to read its address. This can take up to a minute."
+    },
+    "abort": {
+      "no_devices_found": "No Artemide lamp found. Make sure the lamps are powered and a Bluetooth adapter or proxy is in range.",
+      "already_configured": "The Artemide network is already configured.",
+      "single_instance_allowed": "The Artemide network is already configured.",
+      "not_supported": "This Bluetooth device is not an Artemide lamp."
+    },
+    "error": {
+      "invalid_nodes": "Node addresses must be 4 characters each, e.g. 0004, 0005."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Artemide options",
+        "description": "Known lamps:\n{lamps}",
+        "data": {
+          "poll_interval": "Poll interval (seconds)",
+          "extra_nodes": "Extra node addresses",
+          "rediscover": "Re-run lamp discovery"
+        }
+      }
+    },
+    "progress": {
+      "discover": "Connecting to each lamp to read its address. This can take up to a minute."
+    },
+    "error": {
+      "invalid_nodes": "Node addresses must be 4 characters each, e.g. 0004, 0005."
+    }
+  },
+  "services": {
+    "send_commands": {
+      "name": "Send raw commands",
+      "description": "Diagnostics: connect to one lamp, send raw protocol commands and return every reply. Pauses the integration while running. Write \\r for a carriage return.",
+      "fields": {
+        "address": {
+          "name": "Lamp Bluetooth address",
+          "description": "MAC of the lamp to connect to (must be in range of a Bluetooth proxy)."
+        },
+        "password": {
+          "name": "Network password",
+          "description": "Sent with SPS before the commands."
+        },
+        "commands": {
+          "name": "Commands",
+          "description": "List of commands, sent in order. Write \\r for a carriage return; prefix hex: to send raw bytes (color frames)."
+        },
+        "window": {
+          "name": "Reply window",
+          "description": "Seconds to collect replies after each command."
+        }
+      }
+    }
+  }
+}

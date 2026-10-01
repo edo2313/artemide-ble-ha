@@ -1,0 +1,24 @@
+send_commands:
+  fields:
+    address:
+      required: true
+      example: "AA:BB:CC:DD:EE:FF"
+      selector:
+        text:
+    password:
+      default: "00000@lLiX"
+      selector:
+        text:
+    commands:
+      required: true
+      example: '["RID\r", "RIG\r", "SMS LN0001RS105", "SMS LNFFFFRF100"]'
+      selector:
+        object:
+    window:
+      default: 1.5
+      selector:
+        number:
+          min: 0.2
+          max: 10
+          step: 0.1
+          unit_of_measurement: s

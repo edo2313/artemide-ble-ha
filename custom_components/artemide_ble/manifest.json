@@ -1,0 +1,28 @@
+{
+  "domain": "artemide_ble",
+  "name": "Artemide BLE",
+  "version": "0.2.0",
+  "bluetooth": [
+    {
+      "service_uuid": "11960002-b656-22ae-e611-9680866c0d6a"
+    },
+    {
+      "local_name": "A2O*",
+      "connectable": true
+    }
+  ],
+  "codeowners": [
+    "@edo2313"
+  ],
+  "config_flow": true,
+  "dependencies": [
+    "bluetooth_adapters"
+  ],
+  "documentation": "https://github.com/edo2313/artemide-ble-ha",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/edo2313/artemide-ble-ha/issues",
+  "requirements": [
+    "bleak-retry-connector>=3.4.0"
+  ],
+  "single_config_entry": true
+}
