@@ -22,6 +22,9 @@ host's Bluetooth adapter or with an ESPHome Bluetooth proxy.
 Built for and tested only with the Artemide **Discovery RGBW** (advertised name `A2O...`,
 firmware 192).
 
+Reported working by users (not tested by the author):
+- **Ilio Mini** ([#1](https://github.com/edo2313/artemide-ble-ha/issues/1))
+
 Other Artemide Bluetooth lamps use the same mesh protocol, so discovery, on/off and polling will
 likely work on them too, but they are untested:
 - Other RGBW models (e.g. Sharp RGBW, A24 RGBW, Nur, Bespoke RGBW) are the closest match.
