@@ -15,14 +15,15 @@
       },
       "confirm": {
         "title": "Lamps found",
-        "description": "{lamps}\n\nOptionally add node addresses of lamps that are only reachable through the mesh (4 characters each, comma separated).",
+        "description": "{lamps}\n\n{problems}\n\nOptionally add node addresses of lamps that are only reachable through the mesh (4 characters each, comma separated).",
         "data": {
-          "extra_nodes": "Extra node addresses"
+          "extra_nodes": "Extra node addresses",
+          "retry": "Retry the lamps that did not answer"
         }
       }
     },
     "progress": {
-      "discover": "Connecting to each lamp to read its address. This can take up to a minute."
+      "discover": "Connecting to each lamp to read its address. Lamps that do not answer are retried, so this can take a few minutes."
     },
     "abort": {
       "no_devices_found": "No Artemide lamp found. Make sure the lamps are powered and a Bluetooth adapter or proxy is in range.",
@@ -44,10 +45,17 @@
           "extra_nodes": "Extra node addresses",
           "rediscover": "Re-run lamp discovery"
         }
+      },
+      "finish": {
+        "title": "Discovery result",
+        "description": "{lamps}\n\n{problems}\n\nSubmit to save. Lamps that did not answer keep their previous settings.",
+        "data": {
+          "retry": "Retry the lamps that did not answer"
+        }
       }
     },
     "progress": {
-      "discover": "Connecting to each lamp to read its address. This can take up to a minute."
+      "discover": "Connecting to each lamp to read its address. Lamps that do not answer are retried, so this can take a few minutes."
     },
     "error": {
       "invalid_nodes": "Node addresses must be 4 characters each, e.g. 0004, 0005."

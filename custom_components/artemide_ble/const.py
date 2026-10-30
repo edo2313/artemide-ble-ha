@@ -27,6 +27,7 @@ CONF_PASSWORD = "password"
 CONF_LAMPS = "lamps"
 CONF_EXTRA_NODES = "extra_nodes"
 CONF_REDISCOVER = "rediscover"
+CONF_RETRY = "retry"
 CONF_POLL_INTERVAL = "poll_interval"
 
 # Keys of one lamp record in entry.data[CONF_LAMPS].
@@ -49,6 +50,11 @@ READ_TIMEOUT = 3.0
 # Per-lamp identify (config flow): connect to each advertising lamp, read its
 # own mesh address with RID. Connection attempt budget per lamp.
 IDENTIFY_TIMEOUT = 20.0
+# Attempts per lamp, and pauses between attempts / between connections: a lamp
+# or proxy slot still releasing the previous connection refuses a new one.
+IDENTIFY_ATTEMPTS = 3
+IDENTIFY_RETRY_DELAY = 3.0
+CONNECT_GAP = 1.0
 
 # Broadcast read "SMS LNFFFFRF100": collect replies for this long. Each mesh
 # reply carries the sender address in bytes 4..7. Unverified on hardware.

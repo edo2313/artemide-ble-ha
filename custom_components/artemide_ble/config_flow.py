@@ -23,6 +23,7 @@ from .const import (
     CONF_PASSWORD,
     CONF_POLL_INTERVAL,
     CONF_REDISCOVER,
+    CONF_RETRY,
     DEFAULT_PASSWORD,
     DEFAULT_POLL_INTERVAL,
     DOMAIN,
@@ -32,7 +33,7 @@ from .const import (
     LAMP_NODE,
     SERVICE_UUID,
 )
-from .discovery import async_discover_lamps, discovered_lamps
+from .discovery import DiscoveryResult, async_discover_lamps, discovered_lamps
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -63,6 +64,21 @@ def _describe(lamps: list[dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
+def _problems(result: DiscoveryResult) -> str:
+    """Markdown block listing lamps that could not be added (or empty)."""
+    lines: list[str] = []
+    if result.failed:
+        lines.append("**Did not answer:**")
+        lines += [f"- {lamp}" for lamp in result.failed]
+    if result.duplicates:
+        lines.append(
+            "**Same address as another lamp** (probably a separate network in the "
+            "Artemide app; only one can be controlled):"
+        )
+        lines += [f"- {lamp}" for lamp in result.duplicates]
+    return "\n".join(lines)
+
+
 class ArtemideConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Artemide BLE.
 
@@ -73,8 +89,8 @@ class ArtemideConfigFlow(ConfigFlow, domain=DOMAIN):
 
     def __init__(self) -> None:
         self._password: str = DEFAULT_PASSWORD
-        self._lamps: list[dict[str, Any]] = []
-        self._discover_task: asyncio.Task[list[dict[str, Any]]] | None = None
+        self._result = DiscoveryResult()
+        self._discover_task: asyncio.Task[DiscoveryResult] | None = None
 
     async def async_step_bluetooth(
         self, discovery_info: BluetoothServiceInfoBleak
@@ -121,8 +137,9 @@ class ArtemideConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         """Connect to each lamp and read its mesh address (takes a while)."""
         if self._discover_task is None:
+            # On a retry, lamps already identified are kept and skipped.
             self._discover_task = self.hass.async_create_task(
-                async_discover_lamps(self.hass, self._password)
+                async_discover_lamps(self.hass, self._password, self._result.lamps)
             )
         if not self._discover_task.done():
             return self.async_show_progress(
@@ -131,12 +148,12 @@ class ArtemideConfigFlow(ConfigFlow, domain=DOMAIN):
                 progress_task=self._discover_task,
             )
         try:
-            self._lamps = self._discover_task.result()
+            self._result = self._discover_task.result()
         except Exception:  # noqa: BLE001 - reported as "nothing found"
             _LOGGER.exception("Artemide discovery failed")
-            self._lamps = []
+            self._result = DiscoveryResult(lamps=self._result.lamps)
         self._discover_task = None
-        if not self._lamps:
+        if not self._result.lamps:
             return self.async_show_progress_done(next_step_id="failed")
         return self.async_show_progress_done(next_step_id="confirm")
 
@@ -151,25 +168,36 @@ class ArtemideConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_confirm(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Show what was found; allow extra mesh-only node addresses."""
+        """Show what was found and what failed; retry, or add extra nodes."""
         errors: dict[str, str] = {}
         if user_input is not None:
             extra = _validate_nodes(user_input.get(CONF_EXTRA_NODES, ""))
             if extra is None:
                 errors["base"] = "invalid_nodes"
+            elif user_input.get(CONF_RETRY):
+                return await self.async_step_discover()
             else:
                 return self.async_create_entry(
                     title="Artemide",
-                    data={CONF_PASSWORD: self._password, CONF_LAMPS: self._lamps},
+                    data={
+                        CONF_PASSWORD: self._password,
+                        CONF_LAMPS: self._result.lamps,
+                    },
                     options={
                         CONF_POLL_INTERVAL: DEFAULT_POLL_INTERVAL,
                         CONF_EXTRA_NODES: extra,
                     },
                 )
+        schema: dict[Any, Any] = {vol.Optional(CONF_EXTRA_NODES, default=""): str}
+        if self._result.failed:
+            schema[vol.Optional(CONF_RETRY, default=True)] = bool
         return self.async_show_form(
             step_id="confirm",
-            data_schema=vol.Schema({vol.Optional(CONF_EXTRA_NODES, default=""): str}),
-            description_placeholders={"lamps": _describe(self._lamps)},
+            data_schema=vol.Schema(schema),
+            description_placeholders={
+                "lamps": _describe(self._result.lamps),
+                "problems": _problems(self._result),
+            },
             errors=errors,
         )
 
@@ -184,7 +212,8 @@ class ArtemideOptionsFlow(OptionsFlow):
 
     def __init__(self) -> None:
         self._options: dict[str, Any] = {}
-        self._discover_task: asyncio.Task[list[dict[str, Any]]] | None = None
+        self._result: DiscoveryResult | None = None
+        self._discover_task: asyncio.Task[DiscoveryResult] | None = None
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -241,9 +270,15 @@ class ArtemideOptionsFlow(OptionsFlow):
                 progress_action="discover",
                 progress_task=self._discover_task,
             )
+        try:
+            self._result = self._discover_task.result()
+        except Exception:  # noqa: BLE001 - keep the old list on failure
+            _LOGGER.exception("Artemide rediscovery failed")
+            self._result = DiscoveryResult(lamps=self._merged([]))
+        self._discover_task = None
         return self.async_show_progress_done(next_step_id="finish")
 
-    async def _async_rediscover(self) -> list[dict[str, Any]]:
+    async def _async_rediscover(self) -> DiscoveryResult:
         # Free the lamp connection held by the running entry: most lamps
         # accept a single central, so identify() would fail on that one.
         coordinator = getattr(self.config_entry, "runtime_data", None)
@@ -251,22 +286,19 @@ class ArtemideOptionsFlow(OptionsFlow):
             coordinator.paused = True
             await coordinator.client.disconnect()
         try:
-            return await async_discover_lamps(
-                self.hass, self.config_entry.data[CONF_PASSWORD]
+            # Retry: keep what the previous pass found, visit only the rest.
+            previous = self._result.lamps if self._result else None
+            result = await async_discover_lamps(
+                self.hass, self.config_entry.data[CONF_PASSWORD], previous
             )
+            result.lamps = self._merged(result.lamps)
+            return result
         finally:
             if coordinator is not None:
                 coordinator.paused = False
 
-    async def async_step_finish(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        """Merge the new discovery into the stored lamps and save."""
-        try:
-            found = self._discover_task.result() if self._discover_task else []
-        except Exception:  # noqa: BLE001 - keep the old list on failure
-            _LOGGER.exception("Artemide rediscovery failed")
-            found = []
+    def _merged(self, found: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Stored lamps updated with a new discovery (nothing is dropped)."""
         lamps = {
             lamp[LAMP_NODE]: lamp
             for lamp in self.config_entry.data.get(CONF_LAMPS, [])
@@ -279,8 +311,30 @@ class ArtemideOptionsFlow(OptionsFlow):
             if old and not lamp[LAMP_GROUPS]:
                 lamp = {**lamp, LAMP_GROUPS: old[LAMP_GROUPS]}
             lamps[lamp[LAMP_NODE]] = lamp
-        self.hass.config_entries.async_update_entry(
-            self.config_entry,
-            data={**self.config_entry.data, CONF_LAMPS: list(lamps.values())},
+        return list(lamps.values())
+
+    async def async_step_finish(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Show the result; retry the lamps that failed, or save."""
+        result = self._result or DiscoveryResult(lamps=self._merged([]))
+        if user_input is not None:
+            if user_input.get(CONF_RETRY):
+                return await self.async_step_discover()
+            self.hass.config_entries.async_update_entry(
+                self.config_entry,
+                data={**self.config_entry.data, CONF_LAMPS: result.lamps},
+            )
+            return self.async_create_entry(data=self._options)
+
+        schema: dict[Any, Any] = {}
+        if result.failed:
+            schema[vol.Optional(CONF_RETRY, default=True)] = bool
+        return self.async_show_form(
+            step_id="finish",
+            data_schema=vol.Schema(schema),
+            description_placeholders={
+                "lamps": _describe(result.lamps),
+                "problems": _problems(result),
+            },
         )
-        return self.async_create_entry(data=self._options)

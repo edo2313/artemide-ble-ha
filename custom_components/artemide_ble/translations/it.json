@@ -15,14 +15,15 @@
       },
       "confirm": {
         "title": "Lampade trovate",
-        "description": "{lamps}\n\nFacoltativo: aggiungi gli indirizzi delle lampade raggiungibili solo tramite le altre lampade (4 caratteri ciascuno, separati da virgola).",
+        "description": "{lamps}\n\n{problems}\n\nFacoltativo: aggiungi gli indirizzi delle lampade raggiungibili solo tramite le altre lampade (4 caratteri ciascuno, separati da virgola).",
         "data": {
-          "extra_nodes": "Indirizzi lampade aggiuntivi"
+          "extra_nodes": "Indirizzi lampade aggiuntivi",
+          "retry": "Riprova con le lampade che non hanno risposto"
         }
       }
     },
     "progress": {
-      "discover": "Collegamento a ogni lampada per leggerne l'indirizzo. Può richiedere fino a un minuto."
+      "discover": "Collegamento a ogni lampada per leggerne l'indirizzo. Le lampade che non rispondono vengono ritentate, quindi possono servire alcuni minuti."
     },
     "abort": {
       "no_devices_found": "Nessuna lampada Artemide trovata. Assicurati che le lampade siano accese e che un adattatore o un proxy Bluetooth sia nelle vicinanze.",
@@ -44,10 +45,17 @@
           "extra_nodes": "Indirizzi lampade aggiuntivi",
           "rediscover": "Ripeti la ricerca delle lampade"
         }
+      },
+      "finish": {
+        "title": "Risultato della ricerca",
+        "description": "{lamps}\n\n{problems}\n\nInvia per salvare. Le lampade che non hanno risposto mantengono le impostazioni precedenti.",
+        "data": {
+          "retry": "Riprova con le lampade che non hanno risposto"
+        }
       }
     },
     "progress": {
-      "discover": "Collegamento a ogni lampada per leggerne l'indirizzo. Può richiedere fino a un minuto."
+      "discover": "Collegamento a ogni lampada per leggerne l'indirizzo. Le lampade che non rispondono vengono ritentate, quindi possono servire alcuni minuti."
     },
     "error": {
       "invalid_nodes": "Gli indirizzi delle lampade devono essere di 4 caratteri ciascuno, ad es. 0004, 0005."

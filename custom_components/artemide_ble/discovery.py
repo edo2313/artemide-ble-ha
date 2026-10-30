@@ -14,14 +14,23 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from dataclasses import dataclass, field
 from typing import Any
 
 from homeassistant.components import bluetooth
 from homeassistant.components.bluetooth import BluetoothServiceInfoBleak
 from homeassistant.core import HomeAssistant
 
-from .client import ArtemideClient, device_type_from_name, is_artemide_name
+from .client import (
+    ArtemideClient,
+    LampIdentity,
+    device_type_from_name,
+    is_artemide_name,
+)
 from .const import (
+    CONNECT_GAP,
+    IDENTIFY_ATTEMPTS,
+    IDENTIFY_RETRY_DELAY,
     IDENTIFY_TIMEOUT,
     LAMP_GROUPS,
     LAMP_MAC,
@@ -59,50 +68,110 @@ def lamp_record(
     }
 
 
-async def async_discover_lamps(
-    hass: HomeAssistant, password: str
-) -> list[dict[str, Any]]:
-    """Identify every reachable lamp; return lamp records (may be empty)."""
-    lamps: list[dict[str, Any]] = []
-    for info in discovered_lamps(hass):
+@dataclass
+class DiscoveryResult:
+    """Lamp records plus what went wrong, for the config/options flow."""
+
+    lamps: list[dict[str, Any]] = field(default_factory=list)
+    # Advertising lamps that never reported their address: "name (MAC)".
+    failed: list[str] = field(default_factory=list)
+    # Lamps reporting an address already taken by another lamp.
+    duplicates: list[str] = field(default_factory=list)
+
+
+def _label(info: BluetoothServiceInfoBleak) -> str:
+    # Artemide names already end with the MAC; don't repeat it.
+    if info.name and info.name.upper().endswith(info.address.upper()):
+        return info.name
+    return f"{info.name or 'unknown'} ({info.address})"
+
+
+async def _async_identify(
+    info: BluetoothServiceInfoBleak, password: str
+) -> LampIdentity | None:
+    """RID on one lamp, retried: a lamp (or proxy slot) still busy with the
+    previous connection often refuses the first attempt."""
+    for attempt in range(1, IDENTIFY_ATTEMPTS + 1):
         client = ArtemideClient(password)
         try:
             identity = await asyncio.wait_for(
                 client.identify(info.device), IDENTIFY_TIMEOUT
             )
-        except Exception:  # noqa: BLE001 - one bad lamp must not stop discovery
-            _LOGGER.debug("Identify failed for %s", info.address, exc_info=True)
+        except Exception:  # noqa: BLE001 - retried, then reported
+            _LOGGER.debug(
+                "Identify attempt %s failed for %s", attempt, info.address, exc_info=True
+            )
             identity = None
         finally:
             await client.disconnect()
+            # Let the lamp and the proxy release the connection.
+            await asyncio.sleep(CONNECT_GAP)
+        if identity is not None:
+            return identity
+        if attempt < IDENTIFY_ATTEMPTS:
+            await asyncio.sleep(IDENTIFY_RETRY_DELAY)
+    return None
+
+
+async def async_discover_lamps(
+    hass: HomeAssistant,
+    password: str,
+    known: list[dict[str, Any]] | None = None,
+) -> DiscoveryResult:
+    """Identify every reachable lamp not already in `known`.
+
+    The result's lamps include `known`, so a retry only visits the lamps that
+    failed (or are new) and returns the complete list.
+    """
+    result = DiscoveryResult(lamps=[dict(lamp) for lamp in known or []])
+    known_macs = {lamp[LAMP_MAC] for lamp in result.lamps if lamp[LAMP_MAC]}
+    for info in discovered_lamps(hass):
+        if info.address in known_macs:
+            continue
+        identity = await _async_identify(info, password)
         if identity is None:
             _LOGGER.warning(
-                "Artemide lamp %s (%s) did not report its address",
-                info.name,
-                info.address,
+                "Artemide lamp %s did not report its address", _label(info)
+            )
+            result.failed.append(_label(info))
+            continue
+        same = next(
+            (lamp for lamp in result.lamps if lamp[LAMP_NODE] == identity.node), None
+        )
+        if same is not None:
+            # Same address twice: separate networks, or a lamp not commissioned
+            # in this one. Only one of them can be controlled.
+            _LOGGER.warning(
+                "Artemide lamp %s reports address %s, already used by %s",
+                _label(info),
+                identity.node,
+                same[LAMP_NAME] or same[LAMP_NODE],
+            )
+            result.duplicates.append(
+                f"{_label(info)}: address {identity.node}, "
+                f"same as {same[LAMP_NAME] or 'node ' + same[LAMP_NODE]}"
             )
             continue
-        if any(lamp[LAMP_NODE] == identity.node for lamp in lamps):
-            continue
         _LOGGER.debug(
-            "Lamp %s: node %s, groups %s", info.name, identity.node, identity.groups
+            "Lamp %s: node %s, groups %s", _label(info), identity.node, identity.groups
         )
-        lamps.append(
+        result.lamps.append(
             lamp_record(identity.node, info.address, info.name, identity.groups)
         )
 
-    if lamps:
-        lamps.extend(await _async_discover_mesh_only(hass, password, lamps))
-    return lamps
+    if any(lamp[LAMP_MAC] for lamp in result.lamps):
+        result.lamps.extend(
+            await _async_discover_mesh_only(hass, password, result.lamps)
+        )
+    return result
 
 
 async def _async_discover_mesh_only(
     hass: HomeAssistant, password: str, lamps: list[dict[str, Any]]
 ) -> list[dict[str, Any]]:
-    """Find nodes reachable only through the mesh, via the first lamp."""
-    device = bluetooth.async_ble_device_from_address(
-        hass, lamps[0][LAMP_MAC], connectable=True
-    )
+    """Find nodes reachable only through the mesh, via the first direct lamp."""
+    mac = next(lamp[LAMP_MAC] for lamp in lamps if lamp[LAMP_MAC])
+    device = bluetooth.async_ble_device_from_address(hass, mac, connectable=True)
     if device is None:
         return []
     known = [lamp[LAMP_NODE] for lamp in lamps]
